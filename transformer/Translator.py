@@ -37,22 +37,31 @@ class Translator(nn.Module):
 
 
     def _model_decode(self, trg_seq, enc_output, src_mask):
+        # Decode step: Pass target sequence through decoder.
+        # trg_mask ensures we don't look at future tokens.
         trg_mask = get_subsequent_mask(trg_seq)
         dec_output, *_ = self.model.decoder(trg_seq, trg_mask, enc_output, src_mask)
+        # Project to vocabulary and apply softmax to get probabilities.
         return F.softmax(self.model.trg_word_prj(dec_output), dim=-1)
 
 
     def _get_init_state(self, src_seq, src_mask):
         beam_size = self.beam_size
 
+        # Encode the source sequence once.
         enc_output, *_ = self.model.encoder(src_seq, src_mask)
+        
+        # Initial decode step with BOS token.
         dec_output = self._model_decode(self.init_seq, enc_output, src_mask)
         
+        # Get top-k probabilities for the first step (beam_size).
         best_k_probs, best_k_idx = dec_output[:, -1, :].topk(beam_size)
 
         scores = torch.log(best_k_probs).view(beam_size)
         gen_seq = self.blank_seqs.clone().detach()
         gen_seq[:, 1] = best_k_idx[0]
+        
+        # Replicate encoder output for each beam.
         enc_output = enc_output.repeat(beam_size, 1, 1)
         return enc_output, gen_seq, scores
 

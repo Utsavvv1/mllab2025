@@ -7,24 +7,48 @@ from transformer.Modules import ScaledDotProductAttention
 __author__ = "Yu-Hsiang Huang"
 
 class MultiHeadAttention(nn.Module):
-    ''' Multi-Head Attention module '''
+    ''' Multi-Head Attention module with Key-Value Compression.
+
+    This implementation compresses the Key (K) and Value (V) projections from the
+    original model dimension (d_model) to a smaller compressed dimension (k).
+    
+    Complexity Improvement:
+    - Original: O(N^2 * d_model) for attention computation.
+    - Compressed: O(N^2 * k) where k << d_model (e.g., 128 vs 512).
+    
+    This results in reduced runtime and memory usage while maintaining the 
+    external interface (input/output dimension remains d_model).
+    '''
 
     def __init__(self, n_head, d_model, d_k, d_v, dropout=0.1):
         super().__init__()
 
         self.n_head = n_head
         
-        # Compression logic
-        d_compressed = 128
+        # Compression logic:
+        # We enforce a compressed dimension 'k' for internal attention computation.
+        # This reduces the complexity of the attention map calculation (Q @ K.T)
+        # and the weighted sum (Attn @ V).
+        d_compressed = 128 
+        
+        # Recalculate per-head dimensions based on the compressed size.
+        # d_k and d_v are now derived from d_compressed, not the input arguments.
         self.d_k = d_compressed // n_head
         self.d_v = d_compressed // n_head
         
         d_k = self.d_k
         d_v = self.d_v
 
+        # Linear projections:
+        # w_qs: Projects Q to compressed dimension (n_head * d_k)
+        # w_ks: Projects K to compressed dimension (n_head * d_k) -> Reduces memory/compute
+        # w_vs: Projects V to compressed dimension (n_head * d_v) -> Reduces memory/compute
         self.w_qs = nn.Linear(d_model, n_head * d_k, bias=False)
         self.w_ks = nn.Linear(d_model, n_head * d_k, bias=False)
         self.w_vs = nn.Linear(d_model, n_head * d_v, bias=False)
+        
+        # Output projection:
+        # Projects from compressed dimension back to original d_model.
         self.fc = nn.Linear(n_head * d_v, d_model, bias=False)
 
         self.attention = ScaledDotProductAttention(temperature=self.d_k ** 0.5)
@@ -42,6 +66,7 @@ class MultiHeadAttention(nn.Module):
 
         # Pass through the pre-attention projection: b x lq x (n*dv)
         # Separate different heads: b x lq x n x dv
+        # Note: The inner dimension here is the COMPRESSED dimension (k=128).
         q = self.w_qs(q).view(sz_b, len_q, n_head, d_k)
         k = self.w_ks(k).view(sz_b, len_k, n_head, d_k)
         v = self.w_vs(v).view(sz_b, len_v, n_head, d_v)
@@ -52,11 +77,15 @@ class MultiHeadAttention(nn.Module):
         if mask is not None:
             mask = mask.unsqueeze(1)   # For head axis broadcasting.
 
+        # Compute Attention with compressed vectors.
+        # Complexity: O(N^2 * k) instead of O(N^2 * d_model)
         q, attn = self.attention(q, k, v, mask=mask)
 
         # Transpose to move the head dimension back: b x lq x n x dv
         # Combine the last two dimensions to concatenate all the heads together: b x lq x (n*dv)
         q = q.transpose(1, 2).contiguous().view(sz_b, len_q, -1)
+        
+        # Project back to original d_model dimension
         q = self.dropout(self.fc(q))
         q += residual
 

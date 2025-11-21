@@ -16,6 +16,7 @@ def load_model(opt, device):
     checkpoint = torch.load(opt.model, map_location=device)
     model_opt = checkpoint['settings']
 
+    # Initialize the Transformer model with the same configuration as training.
     model = Transformer(
         model_opt.src_vocab_size,
         model_opt.trg_vocab_size,

@@ -31,6 +31,7 @@ def cal_performance(pred, gold, trg_pad_idx, smoothing=False):
     pred = pred.max(1)[1]
     gold = gold.contiguous().view(-1)
     non_pad_mask = gold.ne(trg_pad_idx)
+    # Calculate number of correct predictions (ignoring padding)
     n_correct = pred.eq(gold).masked_select(non_pad_mask).sum().item()
     n_word = non_pad_mask.sum().item()
 
@@ -46,6 +47,7 @@ def cal_loss(pred, gold, trg_pad_idx, smoothing=False):
         eps = 0.1
         n_class = pred.size(1)
 
+        # Create one-hot encoding for label smoothing
         one_hot = torch.zeros_like(pred).scatter(1, gold.view(-1, 1), 1)
         one_hot = one_hot * (1 - eps) + (1 - one_hot) * eps / (n_class - 1)
         log_prb = F.log_softmax(pred, dim=1)
@@ -59,12 +61,17 @@ def cal_loss(pred, gold, trg_pad_idx, smoothing=False):
 
 
 def patch_src(src, pad_idx):
+    # Transpose source sequence to (Batch, SeqLen) if needed, or just handle data format.
     src = src.transpose(0, 1)
     return src
 
 
 def patch_trg(trg, pad_idx):
+    # Transpose target sequence.
     trg = trg.transpose(0, 1)
+    # Separate target into input (trg) and ground truth (gold) for next-token prediction.
+    # trg: <s> w1 w2 ... wn
+    # gold: w1 w2 ... wn </s>
     trg, gold = trg[:, :-1], trg[:, 1:].contiguous().view(-1)
     return trg, gold
 

@@ -95,6 +95,7 @@ def _download_file(download_dir, url):
 
 
 def get_raw_files(raw_dir, sources):
+    # Download and extract all source files.
     raw_files = { "src": [], "trg": [], }
     for d in sources:
         src_file, trg_file = download_and_extract(raw_dir, d["url"], d["src"], d["trg"])

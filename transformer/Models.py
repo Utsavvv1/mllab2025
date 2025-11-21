@@ -186,12 +186,25 @@ class Transformer(nn.Module):
 
     def forward(self, src_seq, trg_seq):
 
+        # Create masks for source and target sequences.
+        # src_mask: Masks padding tokens in the source.
+        # trg_mask: Masks padding tokens AND future tokens (subsequent mask) in the target.
         src_mask = get_pad_mask(src_seq, self.src_pad_idx)
         trg_mask = get_pad_mask(trg_seq, self.trg_pad_idx) & get_subsequent_mask(trg_seq)
 
+        # Run the Encoder
+        # enc_output: (Batch, Src_SeqLen, d_model)
         enc_output, *_ = self.encoder(src_seq, src_mask)
+        
+        # Run the Decoder
+        # dec_output: (Batch, Trg_SeqLen, d_model)
+        # Uses enc_output for Cross-Attention.
         dec_output, *_ = self.decoder(trg_seq, trg_mask, enc_output, src_mask)
+        
+        # Project to vocabulary size to get logits
+        # seq_logit: (Batch, Trg_SeqLen, Vocab_Size)
         seq_logit = self.trg_word_prj(dec_output)
+        
         if self.scale_prj:
             seq_logit *= self.d_model ** -0.5
 
