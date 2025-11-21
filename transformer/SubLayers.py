@@ -13,15 +13,21 @@ class MultiHeadAttention(nn.Module):
         super().__init__()
 
         self.n_head = n_head
-        self.d_k = d_k
-        self.d_v = d_v
+        
+        # Compression logic
+        d_compressed = 128
+        self.d_k = d_compressed // n_head
+        self.d_v = d_compressed // n_head
+        
+        d_k = self.d_k
+        d_v = self.d_v
 
         self.w_qs = nn.Linear(d_model, n_head * d_k, bias=False)
         self.w_ks = nn.Linear(d_model, n_head * d_k, bias=False)
         self.w_vs = nn.Linear(d_model, n_head * d_v, bias=False)
         self.fc = nn.Linear(n_head * d_v, d_model, bias=False)
 
-        self.attention = ScaledDotProductAttention(temperature=d_k ** 0.5)
+        self.attention = ScaledDotProductAttention(temperature=self.d_k ** 0.5)
 
         self.dropout = nn.Dropout(dropout)
         self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
