@@ -1,96 +1,32 @@
+# Transformer with Key-Value Compression
 
----
+This repository contains a PyTorch implementation of the Transformer model, modified to include Key-Value (KV) compression in the Multi-Head Attention mechanism.
 
-# 📘 Improving Transformer Efficiency with Key/Value Projection
-Machine Learning Lab – IIIT Pune (2025)
+## Paper Summary
 
-This project extends the original **“Attention Is All You Need”** Transformer architecture by introducing a more efficient variant of the self-attention mechanism. The modification is directly based on our proposal **“Improving Transformer Efficiency with Key/Value Projection”**, where we aim to reduce the **computational and memory overhead** of attention without altering the overall Transformer pipeline.
+The Transformer model ("Attention Is All You Need") uses a self-attention mechanism to process sequences. The standard Multi-Head Attention scales quadratically with sequence length in terms of both time and memory complexity ($O(N^2 \cdot d_{model})$).
 
-Reference proposal used:
-> 📄 `/ML_Proposal (1).docx` — our internal project proposal outlining motivation, equations, expected results, and theoretical justification.
+## Code Description
 
----
+This implementation modifies the standard Transformer architecture to improve efficiency:
 
-## 🚀 Objective
+-   **KV Compression**: The Key and Value matrices in the Multi-Head Attention module are projected to a compressed dimension $k$ (set to 128) instead of the full model dimension $d_{model}$ (typically 512).
+-   **Complexity Reduction**: This reduces the complexity of the attention computation from $O(N^2 \cdot d_{model})$ to $O(N^2 \cdot k)$, resulting in a ~4x speedup and memory reduction in the attention layer.
+-   **Structure**: The codebase is organized into modules (`transformer/`) for the model components and scripts (`train.py`, `translate.py`, `preprocess.py`) for the training and inference workflow.
 
-Self-attention in the original Transformer has **$O(n^2 \cdot d)$** complexity due to full-dimensional dot products between Query, Key, and Value matrices, where $n$ is the sequence length and $d$ is the model dimension. This becomes extremely expensive for long sequences.
+## Usage
 
-Our goal was to:
-* **Reduce computation**
-* **Reduce memory footprint**
-* Keep the model’s **external behavior unchanged**
-* Achieve efficiency without modifying the encoder/decoder structure
+1.  **Preprocess Data**:
+    ```bash
+    python preprocess.py -raw_dir raw_data -data_dir processed_data -save_data data.pkl -codes codes.txt -prefix m30k
+    ```
 
-We accomplish this by computing attention in a **lower-dimensional projected space**.
+2.  **Train Model**:
+    ```bash
+    python train.py -data_pkl processed_data/data.pkl -output_dir output -use_tb
+    ```
 
----
-
-## 🧠 Proposed Improvement (from project proposal)
-
-For each attention head, instead of computing attention using full-dimensional Key and Value vectors of size $d$, we project them into a smaller dimension **$k$**, where **$k \ll d$**.
-
-* **Original Attention** 
-* **Modified Attention** 
-
-We modify the attention mechanism to:
-1.  Project $K \rightarrow K'$ and $V \rightarrow V'$ using learned matrices $W_k$ and $W_v$.
-2.  Project $Q \rightarrow Q'$ into the same reduced dimension $k$ using $W_q$.
-3.  Compute attention using $Q'$ and $K'$.
-4.  Use $V'$ to compute the compressed output $O'$.
-5.  Project the result $O'$ back to the original dimension $d$ using $W_o$.
-
-### Mathematical Formulation
-The formulation for the Key/Value Projection (KVP) attention is:
-
-$$
-K' = KW_k,\quad V' = VW_v,\quad Q' = QW_q
-$$
-
-$$
-\text{scores} = \frac{Q'{K'}^T}{\sqrt{k}}
-$$
-
-$$
-O' = \text{softmax}(\text{scores}) \cdot V'
-$$
-
-$$
-O = O'W_o
-$$
-
-This preserves the structure of the Transformer while reducing the inner attention complexity from $O(n^2 \cdot d)$ to **$O(n^2 \cdot k)$**. This formulation comes directly from the reference proposal document.
-
----
-
-## 🔧 Code Changes (High-Level Overview)
-
-Although the modification is isolated to a single module, implementing it required substantial internal restructuring of how attention is computed within the model.
-
-All changes were made in: `transformer/Modules.py`
-
-Specifically, the following engineering work was performed:
-* Added a parallel **low-rank projection pathway** for $Q, K$, and $V$, each with new learned linear transformations to map into the reduced dimension $k$.
-* Replaced the original full-dimensional attention computation with a compressed **bilinear attention operation**, requiring careful handling of tensor shapes across multi-head splits.
-* Introduced an **output reconstruction projection** ($W_o$) to map the compressed attention result back into the original model dimension, ensuring seamless compatibility with the rest of the Transformer block.
-* Refactored the internal forward-pass logic to synchronize reduced-dimension operations with masking, scaling, softmax, and residual connections.
-* **Maintained full API compatibility** so no changes were needed in `Encoder`, `Decoder`, `Embeddings`, or training scripts — despite the attention mechanism being mathematically re-engineered.
-
-In effect, the core of the Transformer’s attention engine was replaced with a more efficient, **low-rank variant**, while keeping external behavior identical.
-
----
-
-## 📉 Expected Impact
-
-* Lower compute cost for attention
-* Lower GPU memory usage
-* Faster training for long sequence lengths
-* Negligible performance drop for reasonable $k$ values
-
----
-
-## 📚 References Used
-
-* Vaswani et al., *Attention Is All You Need* (2017)
-* Our Project Proposal: *Improving Transformer Efficiency with Key/Value Projection* (internal document used as basis for equations and architecture changes)
-
----
+3.  **Translate**:
+    ```bash
+    python translate.py -model output/model.chkpt -data_pkl processed_data/data.pkl -output prediction.txt
+    ```

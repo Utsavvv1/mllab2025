@@ -5,7 +5,7 @@ import numpy as np
 from transformer.Layers import EncoderLayer, DecoderLayer
 
 
-__author__ = "Yu-Hsiang Huang"
+
 
 
 def get_pad_mask(seq, pad_idx):
