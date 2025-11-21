@@ -33,15 +33,24 @@ class PositionalEncoding(nn.Module):
         # TODO: make it with torch instead of numpy
 
         def get_position_angle_vec(position):
+            # Calculate the angles for the positional encoding.
+            # Formula: pos / 10000^(2i/d_model)
             return [position / np.power(10000, 2 * (hid_j // 2) / d_hid) for hid_j in range(d_hid)]
 
         sinusoid_table = np.array([get_position_angle_vec(pos_i) for pos_i in range(n_position)])
+        
+        # Apply sine to even indices and cosine to odd indices.
+        # PE(pos, 2i) = sin(pos / 10000^(2i/d_model))
+        # PE(pos, 2i+1) = cos(pos / 10000^(2i/d_model))
         sinusoid_table[:, 0::2] = np.sin(sinusoid_table[:, 0::2])  # dim 2i
         sinusoid_table[:, 1::2] = np.cos(sinusoid_table[:, 1::2])  # dim 2i+1
 
         return torch.FloatTensor(sinusoid_table).unsqueeze(0)
 
     def forward(self, x):
+        # Add positional encoding to the input embeddings.
+        # The encoding is fixed (not learned) and allows the model to use sequence order information.
+        # We slice the table to match the sequence length of x.
         return x + self.pos_table[:, :x.size(1)].clone().detach()
 
 

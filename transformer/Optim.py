@@ -26,6 +26,9 @@ class ScheduledOptim():
     def _get_lr_scale(self):
         # Calculate learning rate scale based on the Transformer paper formula.
         # lr = d_model^-0.5 * min(step_num^-0.5, step_num * warmup_steps^-1.5)
+        # This schedule increases the learning rate linearly for the first 'warmup_steps'
+        # and then decreases it proportionally to the inverse square root of the step number.
+        # This helps stabilize training early on and then fine-tune later.
         d_model = self.d_model
         n_steps, n_warmup_steps = self.n_steps, self.n_warmup_steps
         return (d_model ** -0.5) * min(n_steps ** (-0.5), n_steps * n_warmup_steps ** (-1.5))

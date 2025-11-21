@@ -72,19 +72,24 @@ class Translator(nn.Module):
         beam_size = self.beam_size
 
         # Get k candidates for each beam, k^2 candidates in total.
+        # We consider the top 'beam_size' tokens for *each* of the current 'beam_size' hypotheses.
         best_k2_probs, best_k2_idx = dec_output[:, -1, :].topk(beam_size)
 
         # Include the previous scores.
+        # We add the log-probability of the new token to the accumulated score of the path.
         scores = torch.log(best_k2_probs).view(beam_size, -1) + scores.view(beam_size, 1)
 
         # Get the best k candidates from k^2 candidates.
+        # We flatten the (beam_size, beam_size) matrix of scores and pick the top 'beam_size' overall.
         scores, best_k_idx_in_k2 = scores.view(-1).topk(beam_size)
  
         # Get the corresponding positions of the best k candidiates.
+        # Calculate which beam the best candidate came from (row index) and which token it is (col index).
         best_k_r_idxs, best_k_c_idxs = best_k_idx_in_k2 // beam_size, best_k_idx_in_k2 % beam_size
         best_k_idx = best_k2_idx[best_k_r_idxs, best_k_c_idxs]
 
         # Copy the corresponding previous tokens.
+        # We update the generated sequences to reflect the chosen paths.
         gen_seq[:, :step] = gen_seq[best_k_r_idxs, :step]
         # Set the best tokens in this beam search step
         gen_seq[:, step] = best_k_idx

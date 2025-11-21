@@ -67,28 +67,41 @@ class MultiHeadAttention(nn.Module):
         # Pass through the pre-attention projection: b x lq x (n*dv)
         # Separate different heads: b x lq x n x dv
         # Note: The inner dimension here is the COMPRESSED dimension (k=128).
+        # We reshape the output to (Batch, SeqLen, n_head, d_k) to separate heads.
         q = self.w_qs(q).view(sz_b, len_q, n_head, d_k)
         k = self.w_ks(k).view(sz_b, len_k, n_head, d_k)
         v = self.w_vs(v).view(sz_b, len_v, n_head, d_v)
 
         # Transpose for attention dot product: b x n x lq x dv
+        # We swap dimensions 1 and 2 to get (Batch, n_head, SeqLen, d_k).
+        # This allows us to perform batch matrix multiplication across the head dimension.
         q, k, v = q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)
 
         if mask is not None:
+            # Broadcast mask to account for the head dimension.
+            # Mask shape: (Batch, 1, SeqLen) -> (Batch, 1, 1, SeqLen) or similar depending on input.
             mask = mask.unsqueeze(1)   # For head axis broadcasting.
 
         # Compute Attention with compressed vectors.
         # Complexity: O(N^2 * k) instead of O(N^2 * d_model)
+        # Output q is the weighted sum of values: (Batch, n_head, SeqLen_Q, d_v)
         q, attn = self.attention(q, k, v, mask=mask)
 
         # Transpose to move the head dimension back: b x lq x n x dv
-        # Combine the last two dimensions to concatenate all the heads together: b x lq x (n*dv)
+        # We swap back to (Batch, SeqLen, n_head, d_v).
+        # contiguous() is needed because transpose makes the tensor non-contiguous in memory.
+        # view() combines n_head and d_v back into a single dimension: (Batch, SeqLen, n_head * d_v).
         q = q.transpose(1, 2).contiguous().view(sz_b, len_q, -1)
         
         # Project back to original d_model dimension
+        # The final linear layer mixes information from all heads.
         q = self.dropout(self.fc(q))
+        
+        # Residual Connection: Add the original input to the output.
+        # This helps with gradient flow in deep networks.
         q += residual
 
+        # Layer Normalization: Normalize the sum to have mean 0 and variance 1.
         q = self.layer_norm(q)
 
         return q, attn

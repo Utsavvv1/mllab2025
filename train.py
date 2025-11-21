@@ -48,11 +48,15 @@ def cal_loss(pred, gold, trg_pad_idx, smoothing=False):
         n_class = pred.size(1)
 
         # Create one-hot encoding for label smoothing
+        # Instead of a hard 1.0 for the correct class and 0.0 for others,
+        # we distribute 'eps' probability mass among all classes.
+        # Target distribution: (1 - eps) for correct class, eps / (n_class - 1) for others.
         one_hot = torch.zeros_like(pred).scatter(1, gold.view(-1, 1), 1)
         one_hot = one_hot * (1 - eps) + (1 - one_hot) * eps / (n_class - 1)
         log_prb = F.log_softmax(pred, dim=1)
 
         non_pad_mask = gold.ne(trg_pad_idx)
+        # Cross-entropy loss with soft targets: -sum(target * log(prediction))
         loss = -(one_hot * log_prb).sum(dim=1)
         loss = loss.masked_select(non_pad_mask).sum()  # average later
     else:
