@@ -11,7 +11,7 @@ The Transformer model ("Attention Is All You Need") uses a self-attention mechan
 This implementation modifies the standard Transformer architecture to improve efficiency:
 
 -   **KV Compression**: The Key and Value matrices in the Multi-Head Attention module are projected to a compressed dimension $k$ (set to 128) instead of the full model dimension $d_{model}$ (typically 512).
--   **Complexity Reduction**: This reduces the complexity of the attention computation from $O(N^2 \cdot d_{model})$ to $O(N^2 \cdot k)$, resulting in a ~4x speedup and memory reduction in the attention layer.
+-   **Complexity Reduction**: This reduces the complexity of the attention computation from $O(N \cdot d_{model})$ to $O(N \cdot k)$, resulting in a ~4x speedup and memory reduction in the attention layer.
 -   **Structure**: The codebase is organized into modules (`transformer/`) for the model components and scripts (`train.py`, `translate.py`, `preprocess.py`) for the training and inference workflow.
 
 ## Usage
